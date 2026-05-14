@@ -17,83 +17,83 @@ logger = logging.getLogger(__name__)
 class SignalType(Enum):
     """All signal types by tier"""
     # Tier 1: PVSRA Vectors
-    GREEN_VECTOR = ("pvsra", 8.5)
-    RED_VECTOR = ("pvsra", 8.5)
-    BLUE_VECTOR = ("pvsra", 7.0)
-    PURPLE_VECTOR = ("pvsra", 7.0)
+    GREEN_VECTOR = ("pvsra", 8.5, "green_vector")
+    RED_VECTOR = ("pvsra", 8.5, "red_vector")
+    BLUE_VECTOR = ("pvsra", 7.0, "blue_vector")
+    PURPLE_VECTOR = ("pvsra", 7.0, "purple_vector")
     
     # Tier 2: Reversals
-    RED_TO_GREEN_REVERSAL = ("reversal", 9.5)
-    GREEN_TO_RED_REVERSAL = ("reversal", 9.5)
-    BLUE_TO_RED = ("reversal", 8.5)
-    RED_TO_BLUE = ("reversal", 8.5)
-    GREEN_TO_PURPLE = ("reversal", 8.0)
-    PURPLE_TO_GREEN = ("reversal", 8.0)
-    BLUE_TO_PURPLE = ("reversal", 7.5)
-    PURPLE_TO_BLUE = ("reversal", 7.5)
+    RED_TO_GREEN_REVERSAL = ("reversal", 9.5, "red_to_green_reversal")
+    GREEN_TO_RED_REVERSAL = ("reversal", 9.5, "green_to_red_reversal")
+    BLUE_TO_RED = ("reversal", 8.5, "blue_to_red")
+    RED_TO_BLUE = ("reversal", 8.5, "red_to_blue")
+    GREEN_TO_PURPLE = ("reversal", 8.0, "green_to_purple")
+    PURPLE_TO_GREEN = ("reversal", 8.0, "purple_to_green")
+    BLUE_TO_PURPLE = ("reversal", 7.5, "blue_to_purple")
+    PURPLE_TO_BLUE = ("reversal", 7.5, "purple_to_blue")
     
     # Tier 3: EMA Alignment
-    EMA_BULLISH_ALIGN = ("ema", 8.0)
-    EMA_BEARISH_ALIGN = ("ema", 8.0)
-    EMA_WEAK_ALIGN = ("ema", 5.5)
+    EMA_BULLISH_ALIGN = ("ema", 8.0, "ema_bullish_align")
+    EMA_BEARISH_ALIGN = ("ema", 8.0, "ema_bearish_align")
+    EMA_WEAK_ALIGN = ("ema", 5.5, "ema_weak_align")
     
     # Tier 4: Pivot Bounces
-    PIVOT_BOUNCE_PP = ("pivot", 7.0)
-    PIVOT_BOUNCE_R1 = ("pivot", 7.5)
-    PIVOT_BOUNCE_R2 = ("pivot", 7.0)
-    PIVOT_BOUNCE_S1 = ("pivot", 7.5)
-    PIVOT_BOUNCE_S2 = ("pivot", 7.0)
-    PIVOT_BOUNCE_R3 = ("pivot", 6.5)
-    PIVOT_BOUNCE_S3 = ("pivot", 6.5)
+    PIVOT_BOUNCE_PP = ("pivot", 7.0, "pivot_bounce_pp")
+    PIVOT_BOUNCE_R1 = ("pivot", 7.5, "pivot_bounce_r1")
+    PIVOT_BOUNCE_R2 = ("pivot", 7.0, "pivot_bounce_r2")
+    PIVOT_BOUNCE_S1 = ("pivot", 7.5, "pivot_bounce_s1")
+    PIVOT_BOUNCE_S2 = ("pivot", 7.0, "pivot_bounce_s2")
+    PIVOT_BOUNCE_R3 = ("pivot", 6.5, "pivot_bounce_r3")
+    PIVOT_BOUNCE_S3 = ("pivot", 6.5, "pivot_bounce_s3")
     
     # Tier 5: ADR Breakouts
-    ADR_HIGH_REACHED = ("range", 7.5)
-    ADR_LOW_REACHED = ("range", 7.5)
-    ADR_50_HIGH_REACHED = ("range", 7.0)
-    ADR_50_LOW_REACHED = ("range", 7.0)
-    AWR_HIGH_REACHED = ("range", 8.0)
-    AWR_LOW_REACHED = ("range", 8.0)
-    AMR_HIGH_REACHED = ("range", 7.0)
-    AMR_LOW_REACHED = ("range", 7.0)
-    RD_HIGH_REACHED = ("range", 7.0)
-    RD_LOW_REACHED = ("range", 7.0)
-    RW_HIGH_REACHED = ("range", 7.0)
-    RW_LOW_REACHED = ("range", 7.0)
+    ADR_HIGH_REACHED = ("range", 7.5, "adr_high_reached")
+    ADR_LOW_REACHED = ("range", 7.5, "adr_low_reached")
+    ADR_50_HIGH_REACHED = ("range", 7.0, "adr_50_high_reached")
+    ADR_50_LOW_REACHED = ("range", 7.0, "adr_50_low_reached")
+    AWR_HIGH_REACHED = ("range", 8.0, "awr_high_reached")
+    AWR_LOW_REACHED = ("range", 8.0, "awr_low_reached")
+    AMR_HIGH_REACHED = ("range", 7.0, "amr_high_reached")
+    AMR_LOW_REACHED = ("range", 7.0, "amr_low_reached")
+    RD_HIGH_REACHED = ("range", 7.0, "rd_high_reached")
+    RD_LOW_REACHED = ("range", 7.0, "rd_low_reached")
+    RW_HIGH_REACHED = ("range", 7.0, "rw_high_reached")
+    RW_LOW_REACHED = ("range", 7.0, "rw_low_reached")
     
     # Tier 6: Psy Levels
-    PSY_HI_CROSSOVER = ("psy", 6.5)
-    PSY_HI_CROSSUNDER = ("psy", 6.5)
-    PSY_LO_CROSSOVER = ("psy", 6.5)
-    PSY_LO_CROSSUNDER = ("psy", 6.5)
+    PSY_HI_CROSSOVER = ("psy", 6.5, "psy_hi_crossover")
+    PSY_HI_CROSSUNDER = ("psy", 6.5, "psy_hi_crossunder")
+    PSY_LO_CROSSOVER = ("psy", 6.5, "psy_lo_crossover")
+    PSY_LO_CROSSUNDER = ("psy", 6.5, "psy_lo_crossunder")
     
     # Tier 7: Daily Open
-    DAILY_OPEN_CROSS = ("level", 5.5)
+    DAILY_OPEN_CROSS = ("level", 5.5, "daily_open_cross")
     
     # Tier 8: FX Sessions
-    LONDON_SESSION_START = ("session", 6.0)
-    LONDON_SESSION_END = ("session", 6.0)
-    NEW_YORK_SESSION_START = ("session", 6.0)
-    NEW_YORK_SESSION_END = ("session", 6.0)
-    TOKYO_SESSION_START = ("session", 6.0)
-    TOKYO_SESSION_END = ("session", 6.0)
-    SYDNEY_SESSION_START = ("session", 6.0)
-    SYDNEY_SESSION_END = ("session", 6.0)
+    LONDON_SESSION_START = ("session", 6.0, "london_session_start")
+    LONDON_SESSION_END = ("session", 6.0, "london_session_end")
+    NEW_YORK_SESSION_START = ("session", 6.0, "new_york_session_start")
+    NEW_YORK_SESSION_END = ("session", 6.0, "new_york_session_end")
+    TOKYO_SESSION_START = ("session", 6.0, "tokyo_session_start")
+    TOKYO_SESSION_END = ("session", 6.0, "tokyo_session_end")
+    SYDNEY_SESSION_START = ("session", 6.0, "sydney_session_start")
+    SYDNEY_SESSION_END = ("session", 6.0, "sydney_session_end")
     
     # Opening Range Breakouts
-    OR_R1_BREAKOUT = ("or", 7.5)
-    OR_R2_BREAKOUT = ("or", 7.0)
-    OR_S1_BREAKDOWN = ("or", 7.5)
-    OR_S2_BREAKDOWN = ("or", 7.0)
+    OR_R1_BREAKOUT = ("or", 7.5, "or_r1_breakout")
+    OR_R2_BREAKOUT = ("or", 7.0, "or_r2_breakout")
+    OR_S1_BREAKDOWN = ("or", 7.5, "or_s1_breakdown")
+    OR_S2_BREAKDOWN = ("or", 7.0, "or_s2_breakdown")
     
     # Session Levels
-    LONDON_HIGH_CROSSED = ("session_level", 7.0)
-    LONDON_LOW_CROSSED = ("session_level", 7.0)
-    NY_HIGH_CROSSED = ("session_level", 7.0)
-    NY_LOW_CROSSED = ("session_level", 7.0)
-    TOKYO_HIGH_CROSSED = ("session_level", 7.0)
-    TOKYO_LOW_CROSSED = ("session_level", 7.0)
-    SYDNEY_HIGH_CROSSED = ("session_level", 7.0)
-    SYDNEY_LOW_CROSSED = ("session_level", 7.0)
+    LONDON_HIGH_CROSSED = ("session_level", 7.0, "london_high_crossed")
+    LONDON_LOW_CROSSED = ("session_level", 7.0, "london_low_crossed")
+    NY_HIGH_CROSSED = ("session_level", 7.0, "ny_high_crossed")
+    NY_LOW_CROSSED = ("session_level", 7.0, "ny_low_crossed")
+    TOKYO_HIGH_CROSSED = ("session_level", 7.0, "tokyo_high_crossed")
+    TOKYO_LOW_CROSSED = ("session_level", 7.0, "tokyo_low_crossed")
+    SYDNEY_HIGH_CROSSED = ("session_level", 7.0, "sydney_high_crossed")
+    SYDNEY_LOW_CROSSED = ("session_level", 7.0, "sydney_low_crossed")
 
 
 class TradeAction(Enum):
@@ -318,6 +318,9 @@ class SignalProcessor:
         
         elif "breakout" in signal_name:
             return TradeAction.BREAKOUT
+        
+        elif "breakdown" in signal_name:
+            return TradeAction.BREAKDOWN
         
         return TradeAction.SKIP
     
