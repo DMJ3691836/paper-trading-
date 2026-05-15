@@ -1,8 +1,8 @@
 # Complete Trading Signal Mapping
 ## Traders Reality + FX Market Sessions Integration
 
-**Version:** 2.0  
-**Last Updated:** 2026-05-14  
+**Version:** 2.1  
+**Last Updated:** 2026-05-15  
 **Status:** Production Ready ✅
 
 ---
@@ -361,9 +361,49 @@ Price crosses previous daily open.
 
 ### **Confluence Score Calculation (MAX: 9.5 points)**
 
-Each signal contributes points to total confidence:
+Each signal contributes points to total confidence. The Python bot implements this using the `SignalProcessor` class:
 
 ```python
+# From signal_processor.py - Real Implementation
+class SignalProcessor:
+    CONFLUENCE_BONUSES = {
+        ("pvsra", "reversal"): 0.5,    # Vector reversal bonus
+        ("pvsra", "ema"): 0.3,         # Vector + EMA alignment
+        ("reversal", "pivot"): 0.3,    # Reversal at pivot
+        ("range", "session"): 0.2,     # Range break + session
+    }
+    
+    def _calculate_confluence_bonus(self, signal, context):
+        """Calculate bonus points for signal confluence"""
+        bonus = 0.0
+        
+        # Bonus 1: EMA alignment matches signal direction
+        if self._signal_matches_ema_trend(signal, context):
+            bonus += 0.5
+        
+        # Bonus 2: Price at support/resistance
+        if self._near_pivot_level(signal.price, context):
+            bonus += 0.3
+        
+        # Bonus 3: At range breakout level
+        if self._at_range_level(signal.price, context):
+            bonus += 0.3
+        
+        # Bonus 4: In high-volatility session
+        if context.current_session in ["LONDON", "NEW_YORK"]:
+            bonus += 0.2
+        
+        # Bonus 5: Multiple signal categories active
+        if "reversal" in str(signal.signal_type) and context.ema_alignment != "WEAK":
+            bonus += 0.3
+        
+        return bonus
+```
+
+**Confluence Score Breakdown (Detailed):**
+
+```python
+# Pseudocode showing all scoring components
 confluence_score = 0
 
 # Tier 1: PVSRA Vectors (0-2.0 points)
@@ -431,7 +471,9 @@ final_confidence = min(confluence_score, 9.5)
 - Psy Level: 0.5
 - Session OR: 1.5
 - Daily Open: 0.25
-- **TOTAL: 8.25 base** (capped at 9.5 with multiplier)
+- **TOTAL: 8.25 base** 
+- **Bonuses: +0.5-1.5 additional** (confluence combinations)
+- **FINAL CAP: 9.5 maximum**
 
 ### **Score Interpretation & Position Sizing:**
 
@@ -444,6 +486,27 @@ final_confidence = min(confluence_score, 9.5)
 | **<6.0** | SKIP | 45-50% | N/A | 0% | Do not trade |
 
 *Expected win rate from historical backtest data
+
+### **Position Sizing Formula**
+
+The bot implements position sizing based on risk percentage:
+
+```python
+# From signal_processor.py - Position Sizing
+POSITION_SIZE_MULTIPLIERS = {
+    (9, 10): 2.5,      # Score 9.0-10.0 → 2.5% risk
+    (8, 8.9): 2.0,     # Score 8.0-8.9 → 2.0% risk
+    (7, 7.9): 1.5,     # Score 7.0-7.9 → 1.5% risk
+    (6, 6.9): 1.0,     # Score 6.0-6.9 → 1.0% risk
+    (0, 5.9): 0.0,     # Score <6.0 → SKIP
+}
+
+# Calculation Formula
+position_size = (account_balance * risk_per_trade * multiplier) / 100
+
+# Example: $10,000 account, 2% base risk, confidence 8.5
+# position_size = (10000 * 0.02 * 2.0) / 100 = $4 per pip
+```
 
 ### **Entry Checklist Before Every Trade:**
 
@@ -487,6 +550,7 @@ Score < 6.0
 ### **Scenario 1: Tier 1 Says BUY, EMA Says BEARISH**
 - **Action:** Skip trade (EMA penalty = -0.5 to score)
 - **Exception:** If Tier 2 reversal present, trade anyway at 7.0+ score
+- **Code:** See `_signal_matches_ema_trend()` in signal_processor.py
 
 ### **Scenario 2: Green Vector at Daily Open, but Price Near Psy Lo**
 - **Action:** Confidence = -0.5 (Psy penalty)
@@ -542,7 +606,87 @@ Score < 6.0
 
 ---
 
-## 🛠️ Integration Architecture
+## 🔌 Webhook Integration Guide
+
+### **Webhook Payload Format**
+
+Send POST requests to `/webhook` with this JSON structure:
+
+```json
+{
+  "symbol": "EURUSD",
+  "signal": "GREEN_VECTOR",
+  "price": 1.0850,
+  "time": "2026-05-15T12:30:00Z",
+  "indicators": {
+    "pvsra_color": "green",
+    "volume_multiple": 1.8,
+    "ema_5": 1.0860,
+    "ema_13": 1.0855,
+    "ema_50": 1.0845,
+    "ema_200": 1.0820,
+    "pivot_pp": 1.0835,
+    "pivot_r1": 1.0880,
+    "pivot_r2": 1.0910,
+    "pivot_s1": 1.0805,
+    "pivot_s2": 1.0775,
+    "adr_high": 1.0890,
+    "adr_low": 1.0740,
+    "adr_50_high": 1.0815,
+    "adr_50_low": 1.0815,
+    "session": "LONDON",
+    "psy_hi": 1.0950,
+    "psy_lo": 1.0700
+  }
+}
+```
+
+### **Required Fields:**
+- `symbol` (string) - Trading pair (e.g., "EURUSD")
+- `signal` (string) - Signal type from SignalType enum
+- `price` (float) - Current price
+
+### **Optional Fields:**
+- `time` (ISO string) - Signal timestamp (defaults to now)
+- `indicators` (object) - Complete market context
+
+### **Webhook Response Format:**
+
+```json
+{
+  "status": "received",
+  "symbol": "EURUSD",
+  "signal": "GREEN_VECTOR",
+  "confidence_score": 8.5,
+  "action": "BUY",
+  "trade_executed": true,
+  "trade": {
+    "symbol": "EURUSD",
+    "direction": "LONG",
+    "entry_price": 1.0850,
+    "stop_loss": 1.0805,
+    "target_1": 1.0895,
+    "target_2": 1.0940,
+    "target_3": 1.0985,
+    "position_size": 40,
+    "confidence_score": 8.5,
+    "opened_at": "2026-05-15T12:30:00Z"
+  }
+}
+```
+
+### **API Endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/webhook` | POST | Main signal receiver |
+| `/status` | GET | Get current bot status |
+| `/trades` | GET | List all trades (active + closed) |
+| `/test` | POST | Test with sample data |
+
+---
+
+## 🛠️ Implementation Architecture
 
 ### **Data Flow:**
 ```
@@ -553,21 +697,23 @@ TradingView Indicators
   ↓
 Webhook Sender (Pine Script)
   ↓
-JSON Payload
+JSON Payload → POST /webhook
   ↓
-Python Bot Receiver (/webhook)
+Python Bot Receiver (webhook_handler.py)
   ├─ Signal Parser & Validator
-  ├─ Confluence Score Calculator
+  ├─ Confluence Score Calculator (signal_processor.py)
   ├─ Conflict Checker
   ├─ Position Sizer (based on score)
   ↓
 Entry/Exit Generator
   ├─ Set Stop Loss (pivot-based)
   ├─ Set Take Profit (R1/R2/R3 levels)
-  ├─ Set Position Size (2% risk formula)
+  ├─ Set Position Size (risk% formula)
   ↓
-Paper Trading Engine
-  ├─ Execution
+Paper Trading Engine (trading_engine.py)
+  ├─ Trade Execution
+  ├─ Price Monitoring
+  ├─ Trade Closing (at targets/stops)
   ├─ Trade Logging
   ├─ P&L Tracking
   ↓
@@ -577,6 +723,25 @@ Statistics & Analysis
   ├─ Session Performance
   └─ Monthly P&L Report
 ```
+
+### **Python Classes Reference**
+
+**SignalProcessor** (signal_processor.py)
+- `process_signal()` - Main entry point for signal processing
+- `_calculate_confluence_bonus()` - Adds bonus points for signal combinations
+- `_calculate_position_size()` - Determines trade size from confidence
+- `_generate_trade_details()` - Creates complete trade setup
+
+**PaperTradingEngine** (trading_engine.py)
+- `open_trade()` - Opens a new trade
+- `close_trade()` - Closes active trade
+- `update_trade_on_price_movement()` - Monitors prices for exits
+- `get_statistics()` - Returns performance metrics
+
+**Webhook Handler** (webhook_handler.py)
+- `/webhook` - POST endpoint for signal reception
+- `/status` - GET endpoint for current status
+- `/trades` - GET endpoint for trade history
 
 ---
 
@@ -598,10 +763,26 @@ Statistics & Analysis
 
 ---
 
+## 🚀 Getting Started Checklist
+
+- [ ] Set up Flask webhook receiver (webhook_handler.py)
+- [ ] Install dependencies: `pip install flask`
+- [ ] Start bot: `python webhook_handler.py`
+- [ ] Bot runs on `http://localhost:5000`
+- [ ] Test endpoint: POST to `/test` for sample signal
+- [ ] Configure TradingView alerts to send to `/webhook`
+- [ ] Monitor `/status` endpoint for live performance
+- [ ] Export trades via `trading_engine.export_trades()`
+- [ ] Validate win rates match expected benchmarks
+- [ ] Scale position sizes as confidence builds
+
+---
+
 ## 🔄 Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | 2026-05-15 | Added actual Python implementation examples, fixed EMA logic, clarified 9.5 cap, added webhook documentation, added real API endpoints |
 | 2.0 | 2026-05-14 | Fixed EMA logic, corrected confluence max to 9.5, added conflict handling, added entry checklist, added session times table |
 | 1.0 | Initial | Original signal mapping |
 
@@ -624,6 +805,16 @@ A: 2-5 times per EURUSD daily candle. They're reliable but not frequent—don't 
 **Q: Should I use hard stops or mental stops?**  
 A: Always use hard stops. Place them at pivot S2 or recent swing low.
 
+**Q: How do I deploy this bot?**  
+A: 
+1. Clone repo: `git clone <repo_url>`
+2. Install: `pip install -r requirements.txt`
+3. Run: `python webhook_handler.py`
+4. Point TradingView alerts to your server's `/webhook` endpoint
+
+**Q: How do I track performance over time?**  
+A: Use `GET /trades` to fetch all trades, then export to CSV/Excel for analysis.
+
 ---
 
-Next: Implement these signals in Python bot! 🚀
+Next: Deploy to production and backtest against historical data! 🚀
