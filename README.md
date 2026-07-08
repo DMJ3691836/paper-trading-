@@ -50,7 +50,7 @@ Automated trading bot for TradingView webhook integration with complete risk man
 
 ```bash
 # Clone repository
-git clone <repo-url>
+git clone https://github.com/DMJ3691836/paper-trading-.git
 cd paper-trading-
 
 # Create environment
@@ -165,7 +165,7 @@ docker-compose up -d
 ssh -i key.pem ec2-user@your-instance
 
 # Clone and setup
-git clone <repo-url>
+git clone https://github.com/DMJ3691836/paper-trading-.git
 cd paper-trading-
 pip install -r requirements.txt
 
