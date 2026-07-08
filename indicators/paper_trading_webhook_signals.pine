@@ -1,0 +1,211 @@
+//@version=6
+indicator("Paper Trading Webhook Signals - PVSRA / EMA / Confluence", overlay=true, max_labels_count=500)
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INPUTS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+groupSignals = "Signal Settings"
+volLen       = input.int(20, "Volume MA Length", minval=1, group=groupSignals)
+vectorMult   = input.float(1.8, "Vector Volume Multiple", step=0.1, group=groupSignals)
+useCloseOnly = input.bool(true, "Trigger Only On Bar Close", group=groupSignals)
+
+groupEMA = "EMA Settings"
+emaFastLen  = input.int(5, "EMA Fast", group=groupEMA)
+emaMidLen   = input.int(13, "EMA Mid", group=groupEMA)
+emaTrendLen = input.int(50, "EMA Trend", group=groupEMA)
+emaLongLen  = input.int(200, "EMA Long", group=groupEMA)
+
+groupLevels = "Confluence Levels"
+adrLen      = input.int(14, "ADR Length", minval=1, group=groupLevels)
+psyStep     = input.float(0.0050, "Psychological Level Step", step=0.0001, group=groupLevels)
+
+groupSessions = "Sessions"
+asiaSession   = input.session("0000-0700", "Asia Session", group=groupSessions)
+londonSession = input.session("0700-1200", "London Session", group=groupSessions)
+nySession     = input.session("1200-1700", "New York Session", group=groupSessions)
+
+groupAlerts = "Webhook Settings"
+sendAlerts = input.bool(true, "Send Webhook Alerts", group=groupAlerts)
+showLabels = input.bool(true, "Show Signal Labels", group=groupAlerts)
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CORE INDICATORS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ema5   = ta.ema(close, emaFastLen)
+ema13  = ta.ema(close, emaMidLen)
+ema50  = ta.ema(close, emaTrendLen)
+ema200 = ta.ema(close, emaLongLen)
+
+plot(ema5, "EMA 5")
+plot(ema13, "EMA 13")
+plot(ema50, "EMA 50")
+plot(ema200, "EMA 200")
+
+volMA = ta.sma(volume, volLen)
+volumeMultiple = volMA > 0 ? volume / volMA : 0.0
+
+bullCandle = close > open
+bearCandle = close < open
+
+greenVector = bullCandle and volumeMultiple >= vectorMult
+redVector   = bearCandle and volumeMultiple >= vectorMult
+
+emaBullishAlign = ema5 > ema13 and ema13 > ema50 and ema50 > ema200
+emaBearishAlign = ema5 < ema13 and ema13 < ema50 and ema50 < ema200
+
+redToGreenReversal = redVector[1] and greenVector and close > high[1]
+greenToRedReversal = greenVector[1] and redVector and close < low[1]
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DAILY PIVOTS / ADR
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+dHighPrev  = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+dLowPrev   = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+dClosePrev = request.security(syminfo.tickerid, "D", close[1], lookahead=barmerge.lookahead_on)
+dOpen      = request.security(syminfo.tickerid, "D", open, lookahead=barmerge.lookahead_on)
+
+pivotPP = (dHighPrev + dLowPrev + dClosePrev) / 3.0
+pivotR1 = 2.0 * pivotPP - dLowPrev
+pivotS1 = 2.0 * pivotPP - dHighPrev
+pivotR2 = pivotPP + (dHighPrev - dLowPrev)
+pivotS2 = pivotPP - (dHighPrev - dLowPrev)
+
+adr = request.security(
+     syminfo.tickerid,
+     "D",
+     ta.sma(high - low, adrLen)[1],
+     lookahead=barmerge.lookahead_on
+)
+
+adrHigh   = dOpen + adr
+adrLow    = dOpen - adr
+adr50High = dOpen + adr * 0.5
+adr50Low  = dOpen - adr * 0.5
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PSYCHOLOGICAL LEVELS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+psyLo = math.floor(close / psyStep) * psyStep
+psyHi = psyLo + psyStep
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SESSION DETECTION
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+inAsia   = not na(time(timeframe.period, asiaSession))
+inLondon = not na(time(timeframe.period, londonSession))
+inNY     = not na(time(timeframe.period, nySession))
+
+sessionName =
+     inLondon ? "LONDON" :
+     inNY     ? "NEW_YORK" :
+     inAsia   ? "ASIA" :
+     "OFF_SESSION"
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SIGNAL PRIORITY
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+string signal = "NONE"
+string direction = "SKIP"
+
+if redToGreenReversal
+    signal := "RED_TO_GREEN_REVERSAL"
+    direction := "BUY_STRONG"
+else if greenToRedReversal
+    signal := "GREEN_TO_RED_REVERSAL"
+    direction := "SELL_STRONG"
+else if greenVector
+    signal := "GREEN_VECTOR"
+    direction := "BUY"
+else if redVector
+    signal := "RED_VECTOR"
+    direction := "SELL"
+else if emaBullishAlign and not emaBullishAlign[1]
+    signal := "EMA_BULLISH_ALIGN"
+    direction := "BUY"
+else if emaBearishAlign and not emaBearishAlign[1]
+    signal := "EMA_BEARISH_ALIGN"
+    direction := "SELL"
+
+
+validSignal = signal != "NONE"
+canTrigger = useCloseOnly ? barstate.isconfirmed : true
+triggerAlert = validSignal and canTrigger
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// JSON PAYLOAD
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+num(x) =>
+    str.tostring(x, format.mintick)
+
+payload =
+     "{" +
+     "\"symbol\":\"" + syminfo.ticker + "\"," +
+     "\"signal\":\"" + signal + "\"," +
+     "\"direction\":\"" + direction + "\"," +
+     "\"price\":" + num(close) + "," +
+     "\"time\":\"" + str.format_time(time, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC") + "\"," +
+     "\"indicators\":{" +
+         "\"pvsra_color\":\"" + (greenVector ? "green" : redVector ? "red" : "neutral") + "\"," +
+         "\"volume_multiple\":" + str.tostring(volumeMultiple, "#.##") + "," +
+         "\"ema_5\":" + num(ema5) + "," +
+         "\"ema_13\":" + num(ema13) + "," +
+         "\"ema_50\":" + num(ema50) + "," +
+         "\"ema_200\":" + num(ema200) + "," +
+         "\"pivot_pp\":" + num(pivotPP) + "," +
+         "\"pivot_r1\":" + num(pivotR1) + "," +
+         "\"pivot_r2\":" + num(pivotR2) + "," +
+         "\"pivot_s1\":" + num(pivotS1) + "," +
+         "\"pivot_s2\":" + num(pivotS2) + "," +
+         "\"adr_high\":" + num(adrHigh) + "," +
+         "\"adr_low\":" + num(adrLow) + "," +
+         "\"adr_50_high\":" + num(adr50High) + "," +
+         "\"adr_50_low\":" + num(adr50Low) + "," +
+         "\"session\":\"" + sessionName + "\"," +
+         "\"psy_hi\":" + num(psyHi) + "," +
+         "\"psy_lo\":" + num(psyLo) +
+     "}" +
+     "}"
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ALERTS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+if sendAlerts and triggerAlert
+    alert(payload, alert.freq_once_per_bar_close)
+
+alertcondition(triggerAlert, title="Webhook Signal", message="Webhook signal triggered. Use Any alert() function call for full JSON payload.")
+
+
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// VISUALS
+//━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+plotshape(greenVector, title="Green Vector", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="GV")
+plotshape(redVector, title="Red Vector", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="RV")
+
+plotshape(redToGreenReversal, title="Red to Green Reversal", style=shape.labelup, location=location.belowbar, text="R→G")
+plotshape(greenToRedReversal, title="Green to Red Reversal", style=shape.labeldown, location=location.abovebar, text="G→R")
+
+if showLabels and triggerAlert
+    labelText = signal + "\n" + direction + "\n" + sessionName
+    label.new(
+         bar_index,
+         direction == "BUY" or direction == "BUY_STRONG" ? low : high,
+         labelText,
+         style = direction == "BUY" or direction == "BUY_STRONG" ? label.style_label_up : label.style_label_down,
+         textcolor = color.white
+    )

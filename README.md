@@ -44,6 +44,12 @@ Automated trading bot for TradingView webhook integration with complete risk man
 - Heroku/AWS compatible
 - Scalable architecture
 
+✅ **TradingView Integration**
+- Pre-built Pine Script indicator
+- PVSRA + EMA + Confluence signals
+- Complete webhook integration
+- One-click chart addition
+
 ## Quick Start
 
 ### 1. Setup Environment
@@ -261,6 +267,11 @@ See `docs/COMPLETE_SIGNAL_MAPPING.md` for full signal documentation including:
 │   ├── risk_manager.py        # Risk management system
 │   ├── config.py              # Configuration management
 │   └── dashboard.py           # Dashboard API
+├── indicators/
+│   ├── paper_trading_webhook_signals.pine  # TradingView indicator
+│   ├── SETUP_GUIDE.md                      # Installation guide
+│   ├── TECHNICAL_REVIEW.md                 # Code review
+│   └── README.md                           # Indicator documentation
 ├── docs/
 │   └── COMPLETE_SIGNAL_MAPPING.md  # Full signal reference
 ├── templates/
