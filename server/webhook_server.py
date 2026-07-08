@@ -205,19 +205,45 @@ def _map_signal_type(signal_name):
 
 
 def _get_current_session():
-    """Determine current FX trading session"""
+    """Determine current FX trading session with non-overlapping ranges
+    
+    FX Session times (UTC):
+    - Sydney: 20:00-05:00 (wraps around midnight)
+    - Tokyo: 00:00-09:00 (overlap 00:00-05:00, Sydney takes priority)
+    - London: 08:00-17:00
+    - New York: 13:00-22:00 (overlap 13:00-17:00, handled separately)
+    
+    Priority for overlaps:
+    - 00:00-05:00: Sydney (primary)
+    - 13:00-17:00: New York (primary, during London/NY overlap)
+    """
     hour = datetime.now().hour
     
-    if 8 <= hour < 17:
-        return "LONDON"
-    elif 13 <= hour < 22:
-        return "NEW_YORK"
-    elif 0 <= hour < 9:
-        return "TOKYO"
-    elif 21 <= hour < 24 or 0 <= hour < 2:
+    # Sydney session: 20:00-23:59 and 00:00-04:59 (continues into next day)
+    if hour >= 20 or hour < 5:
         return "SYDNEY"
-    else:
-        return "OVERLAP"
+    
+    # Tokyo session: 05:00-08:59 (clean window, no overlap)
+    if 5 <= hour < 9:
+        return "TOKYO"
+    
+    # London session: 08:00-12:59 (clean window, no overlap with NY which starts at 13:00)
+    if 8 <= hour < 13:
+        return "LONDON"
+    
+    # London/New York overlap: 13:00-16:59 - New York takes priority
+    if 13 <= hour < 17:
+        return "NEW_YORK"
+    
+    # New York session continues: 17:00-21:59 (no overlap)
+    if 17 <= hour < 22:
+        return "NEW_YORK"
+    
+    # Sydney/New York transition: 22:00-23:59 - New York priority
+    if 22 <= hour < 24:
+        return "NEW_YORK"
+    
+    return "OVERLAP"
 
 
 if __name__ == '__main__':
