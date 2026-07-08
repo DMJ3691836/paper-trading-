@@ -11,7 +11,6 @@ This Pine Script indicator generates trading signals based on Volume Spread Reve
 ✅ **PVSRA Signals**
 - Green Vector: Bullish volume continuation
 - Red Vector: Bearish volume continuation
-- Blue Vector: Accumulation phases
 - Reversal patterns (Red→Green, Green→Red)
 
 ✅ **EMA-Based Confirmations**

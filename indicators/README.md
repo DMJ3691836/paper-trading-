@@ -25,7 +25,7 @@ indicators/
 **Purpose**: Generate PVSRA, EMA, and confluence-based trading signals for automatic webhook delivery to the Python bot.
 
 **Key Features**:
-- 📊 PVSRA Vector candle analysis (Green/Red/Blue/Purple)
+- 📊 PVSRA Vector candle analysis (Green/Red)
 - 📈 EMA alignment tracking (5/13/50/200)
 - 🎯 Daily pivot points (PP, R1, R2, S1, S2)
 - 📍 Average Daily Range (ADR) levels

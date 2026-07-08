@@ -187,7 +187,7 @@ payload =
 if sendAlerts and triggerAlert
     alert(payload, alert.freq_once_per_bar_close)
 
-alertcondition(triggerAlert, title="Webhook Signal", message="Webhook signal triggered. Use Any alert() function call for full JSON payload.")
+alertcondition(triggerAlert, title="Webhook Signal", message="Webhook signal triggered. Use any alert() function call for full JSON payload.")
 
 
 //━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
