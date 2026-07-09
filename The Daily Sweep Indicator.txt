@@ -1,0 +1,410 @@
+//@version=5
+indicator("The Daily Sweep", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=100)
+
+//----------------------------------------------------
+// Inputs
+//----------------------------------------------------
+dailyTf          = input.timeframe("D", "Daily Bias Timeframe")
+levelLookback    = input.int(5, "Short-Term Level Lookback", minval=2)
+nySession        = input.session("0930-1200", "New York Setup Window")
+nyTimezone       = input.string("America/New_York", "Session Timezone")
+
+maxBarsForFvg    = input.int(3, "Max Bars After Sweep For FVG", minval=1)
+maxBarsForEntry  = input.int(8, "Max Bars To Wait For Pullback", minval=1)
+
+entryMode        = input.string("Midpoint", "FVG Entry Trigger", options=["Any Touch", "Midpoint"])
+stopBufferTicks  = input.int(2, "Stop Buffer In Ticks", minval=0)
+
+showDailyLevels  = input.bool(true, "Show Previous Day High/Low")
+showFvgBoxes     = input.bool(true, "Show FVG Boxes")
+showRiskLines    = input.bool(true, "Show Entry / Stop / Target Lines")
+showBiasTable    = input.bool(true, "Show Daily Bias Table")
+
+//----------------------------------------------------
+// Daily bias
+//----------------------------------------------------
+[dHigh1, dLow1, dHigh2, dLow2] = request.security(
+     syminfo.tickerid,
+     dailyTf,
+     [high[1], low[1], high[2], low[2]],
+     barmerge.gaps_off,
+     barmerge.lookahead_off
+)
+
+prevDayHigh = dHigh1
+prevDayLow  = dLow1
+
+dailyBull = dHigh1 > dHigh2 and dLow1 > dLow2
+dailyBear = dHigh1 < dHigh2 and dLow1 < dLow2
+dailyNeutral = not dailyBull and not dailyBear
+
+biasText = dailyBull ? "BUYERS IN CONTROL" : dailyBear ? "SELLERS IN CONTROL" : "NO CLEAR DAILY BIAS"
+
+//----------------------------------------------------
+// Session filter
+//----------------------------------------------------
+inNySession = not na(time(timeframe.period, nySession, nyTimezone))
+
+//----------------------------------------------------
+// Short-term liquidity levels
+//----------------------------------------------------
+priorShortLow  = ta.lowest(low[1], levelLookback)
+priorShortHigh = ta.highest(high[1], levelLookback)
+
+// A bullish Daily Sweep setup:
+// Daily bias is bullish, but price first sweeps below a short-term low.
+longSweep = dailyBull and inNySession and low < priorShortLow and close > priorShortLow
+
+// A bearish Daily Sweep setup:
+// Daily bias is bearish, but price first sweeps above a short-term high.
+shortSweep = dailyBear and inNySession and high > priorShortHigh and close < priorShortHigh
+
+//----------------------------------------------------
+// Fair value gap logic
+//----------------------------------------------------
+// Bullish FVG: current low is above the high from two candles ago.
+bullFvg = low > high[2]
+
+// Bearish FVG: current high is below the low from two candles ago.
+bearFvg = high < low[2]
+
+//----------------------------------------------------
+// State variables
+//----------------------------------------------------
+var int   setupDir      = 0
+var int   sweepBar      = na
+var float sweepExtreme  = na
+var float sweptLevel    = na
+
+var bool  waitingForFvg = false
+var bool  fvgActive     = false
+var int   fvgBar        = na
+var float fvgTop        = na
+var float fvgBottom     = na
+
+var box   activeBox     = na
+
+//----------------------------------------------------
+// Signal variables
+//----------------------------------------------------
+longEntrySignal  = false
+shortEntrySignal = false
+longFvgSignal    = false
+shortFvgSignal   = false
+
+//----------------------------------------------------
+// New sweep detected
+//----------------------------------------------------
+if longSweep
+    setupDir      := 1
+    sweepBar      := bar_index
+    sweepExtreme  := low
+    sweptLevel    := priorShortLow
+    waitingForFvg := true
+    fvgActive     := false
+    fvgBar        := na
+    fvgTop        := na
+    fvgBottom     := na
+
+    if not na(activeBox)
+        box.delete(activeBox)
+        activeBox := na
+
+    label.new(
+         bar_index,
+         low,
+         "Bullish fakeout\nBuy bias active",
+         style=label.style_label_up,
+         textcolor=color.white,
+         color=color.new(color.green, 0)
+    )
+
+if shortSweep
+    setupDir      := -1
+    sweepBar      := bar_index
+    sweepExtreme  := high
+    sweptLevel    := priorShortHigh
+    waitingForFvg := true
+    fvgActive     := false
+    fvgBar        := na
+    fvgTop        := na
+    fvgBottom     := na
+
+    if not na(activeBox)
+        box.delete(activeBox)
+        activeBox := na
+
+    label.new(
+         bar_index,
+         high,
+         "Bearish fakeout\nSell bias active",
+         style=label.style_label_down,
+         textcolor=color.white,
+         color=color.new(color.red, 0)
+    )
+
+//----------------------------------------------------
+// FVG confirmation after sweep
+//----------------------------------------------------
+barsSinceSweep = not na(sweepBar) ? bar_index - sweepBar : na
+canConfirmFvg  = waitingForFvg and not na(barsSinceSweep) and barsSinceSweep > 0 and barsSinceSweep <= maxBarsForFvg
+
+if canConfirmFvg and setupDir == 1 and bullFvg
+    fvgTop        := low
+    fvgBottom     := high[2]
+    fvgBar        := bar_index
+    fvgActive     := true
+    waitingForFvg := false
+    longFvgSignal := true
+
+    if showFvgBoxes
+        activeBox := box.new(
+             left=bar_index - 2,
+             top=fvgTop,
+             right=bar_index,
+             bottom=fvgBottom,
+             bgcolor=color.new(color.green, 85),
+             border_color=color.new(color.green, 20)
+        )
+
+    label.new(
+         bar_index,
+         low,
+         "Bullish FVG\nWait for pullback",
+         style=label.style_label_up,
+         textcolor=color.white,
+         color=color.new(color.green, 0)
+    )
+
+if canConfirmFvg and setupDir == -1 and bearFvg
+    fvgTop        := low[2]
+    fvgBottom     := high
+    fvgBar        := bar_index
+    fvgActive     := true
+    waitingForFvg := false
+    shortFvgSignal := true
+
+    if showFvgBoxes
+        activeBox := box.new(
+             left=bar_index - 2,
+             top=fvgTop,
+             right=bar_index,
+             bottom=fvgBottom,
+             bgcolor=color.new(color.red, 85),
+             border_color=color.new(color.red, 20)
+        )
+
+    label.new(
+         bar_index,
+         high,
+         "Bearish FVG\nWait for pullback",
+         style=label.style_label_down,
+         textcolor=color.white,
+         color=color.new(color.red, 0)
+    )
+
+//----------------------------------------------------
+// Extend active FVG box
+//----------------------------------------------------
+if fvgActive and showFvgBoxes and not na(activeBox)
+    box.set_right(activeBox, bar_index)
+
+//----------------------------------------------------
+// Invalidation and entry logic
+//----------------------------------------------------
+fvgMid = (fvgTop + fvgBottom) / 2.0
+
+longStop   = sweepExtreme - stopBufferTicks * syminfo.mintick
+shortStop  = sweepExtreme + stopBufferTicks * syminfo.mintick
+
+longEntryPrice  = entryMode == "Midpoint" ? fvgMid : fvgTop
+shortEntryPrice = entryMode == "Midpoint" ? fvgMid : fvgBottom
+
+longTarget  = prevDayHigh
+shortTarget = prevDayLow
+
+barsSinceFvg = not na(fvgBar) ? bar_index - fvgBar : na
+entryStillValid = fvgActive and not na(barsSinceFvg) and barsSinceFvg > 0 and barsSinceFvg <= maxBarsForEntry
+
+longInvalidated  = fvgActive and setupDir == 1 and low <= longStop
+shortInvalidated = fvgActive and setupDir == -1 and high >= shortStop
+
+longPullback =
+     entryStillValid and
+     setupDir == 1 and
+     (
+         entryMode == "Midpoint" ? low <= fvgMid : low <= fvgTop
+     ) and
+     longTarget > longEntryPrice
+
+shortPullback =
+     entryStillValid and
+     setupDir == -1 and
+     (
+         entryMode == "Midpoint" ? high >= fvgMid : high >= fvgBottom
+     ) and
+     shortTarget < shortEntryPrice
+
+if longInvalidated
+    label.new(
+         bar_index,
+         low,
+         "Setup invalidated",
+         style=label.style_label_up,
+         textcolor=color.white,
+         color=color.new(color.gray, 0)
+    )
+    fvgActive := false
+    setupDir := 0
+
+if shortInvalidated
+    label.new(
+         bar_index,
+         high,
+         "Setup invalidated",
+         style=label.style_label_down,
+         textcolor=color.white,
+         color=color.new(color.gray, 0)
+    )
+    fvgActive := false
+    setupDir := 0
+
+if longPullback and not longInvalidated
+    longEntrySignal := true
+
+    label.new(
+         bar_index,
+         low,
+         "Daily Sweep LONG\nEntry: " + str.tostring(longEntryPrice, format.mintick) +
+         "\nStop: " + str.tostring(longStop, format.mintick) +
+         "\nTarget: PDH " + str.tostring(longTarget, format.mintick),
+         style=label.style_label_up,
+         textcolor=color.white,
+         color=color.new(color.green, 0)
+    )
+
+    if showRiskLines
+        line.new(bar_index, longEntryPrice, bar_index + 10, longEntryPrice, color=color.green, width=2)
+        line.new(bar_index, longStop, bar_index + 10, longStop, color=color.red, width=2)
+        line.new(bar_index, longTarget, bar_index + 10, longTarget, color=color.blue, width=2)
+
+    fvgActive := false
+    setupDir := 0
+
+if shortPullback and not shortInvalidated
+    shortEntrySignal := true
+
+    label.new(
+         bar_index,
+         high,
+         "Daily Sweep SHORT\nEntry: " + str.tostring(shortEntryPrice, format.mintick) +
+         "\nStop: " + str.tostring(shortStop, format.mintick) +
+         "\nTarget: PDL " + str.tostring(shortTarget, format.mintick),
+         style=label.style_label_down,
+         textcolor=color.white,
+         color=color.new(color.red, 0)
+    )
+
+    if showRiskLines
+        line.new(bar_index, shortEntryPrice, bar_index + 10, shortEntryPrice, color=color.red, width=2)
+        line.new(bar_index, shortStop, bar_index + 10, shortStop, color=color.green, width=2)
+        line.new(bar_index, shortTarget, bar_index + 10, shortTarget, color=color.blue, width=2)
+
+    fvgActive := false
+    setupDir := 0
+
+// Expire setup if no pullback happens in time.
+if fvgActive and not na(barsSinceFvg) and barsSinceFvg > maxBarsForEntry
+    label.new(
+         bar_index,
+         close,
+         "Setup expired",
+         style=label.style_label_left,
+         textcolor=color.white,
+         color=color.new(color.gray, 0)
+    )
+    fvgActive := false
+    setupDir := 0
+
+//----------------------------------------------------
+// Previous day levels
+//----------------------------------------------------
+plot(showDailyLevels ? prevDayHigh : na, "Previous Day High", color=color.new(color.blue, 0), linewidth=1, style=plot.style_linebr)
+plot(showDailyLevels ? prevDayLow : na, "Previous Day Low", color=color.new(color.blue, 0), linewidth=1, style=plot.style_linebr)
+
+//----------------------------------------------------
+// Entry markers
+//----------------------------------------------------
+plotshape(
+     longEntrySignal,
+     title="Daily Sweep Long Entry",
+     style=shape.triangleup,
+     location=location.belowbar,
+     size=size.large,
+     color=color.green,
+     text="LONG"
+)
+
+plotshape(
+     shortEntrySignal,
+     title="Daily Sweep Short Entry",
+     style=shape.triangledown,
+     location=location.abovebar,
+     size=size.large,
+     color=color.red,
+     text="SHORT"
+)
+
+//----------------------------------------------------
+// Bias table
+//----------------------------------------------------
+var table biasTable = table.new(position.top_right, 1, 4, border_width=1)
+
+if barstate.islast and showBiasTable
+    table.cell(
+         biasTable,
+         0,
+         0,
+         "The Daily Sweep",
+         text_color=color.white,
+         bgcolor=color.new(color.black, 0)
+    )
+
+    table.cell(
+         biasTable,
+         0,
+         1,
+         biasText,
+         text_color=color.white,
+         bgcolor=dailyBull ? color.new(color.green, 0) : dailyBear ? color.new(color.red, 0) : color.new(color.gray, 0)
+    )
+
+    table.cell(
+         biasTable,
+         0,
+         2,
+         "PDH: " + str.tostring(prevDayHigh, format.mintick),
+         text_color=color.white,
+         bgcolor=color.new(color.blue, 20)
+    )
+
+    table.cell(
+         biasTable,
+         0,
+         3,
+         "PDL: " + str.tostring(prevDayLow, format.mintick),
+         text_color=color.white,
+         bgcolor=color.new(color.blue, 20)
+    )
+
+//----------------------------------------------------
+// Alerts
+//----------------------------------------------------
+alertcondition(longSweep, "Bullish Fakeout Detected", "The Daily Sweep: bullish fakeout detected against daily buy bias.")
+alertcondition(shortSweep, "Bearish Fakeout Detected", "The Daily Sweep: bearish fakeout detected against daily sell bias.")
+
+alertcondition(longFvgSignal, "Bullish FVG Confirmed", "The Daily Sweep: bullish FVG confirmed after fakeout.")
+alertcondition(shortFvgSignal, "Bearish FVG Confirmed", "The Daily Sweep: bearish FVG confirmed after fakeout.")
+
+alertcondition(longEntrySignal, "Daily Sweep Long Entry", "The Daily Sweep: price pulled back into bullish FVG. Long entry triggered.")
+alertcondition(shortEntrySignal, "Daily Sweep Short Entry", "The Daily Sweep: price pulled back into bearish FVG. Short entry triggered.")
