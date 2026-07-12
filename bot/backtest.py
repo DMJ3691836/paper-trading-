@@ -37,7 +37,7 @@ class BacktestResult:
             "total_pnl": round(self.total_pnl, 2),
             "pnl_percent": round(self.pnl_percent, 2),
             "sharpe_ratio": round(self.sharpe_ratio, 2),
-            "max_drawdown": round(max_drawdown, 2),
+            "max_drawdown": round(self.max_drawdown, 2),
             "avg_trade_duration_hours": self.avg_trade_duration.total_seconds() / 3600,
             "best_trade": round(self.best_trade, 2),
             "worst_trade": round(self.worst_trade, 2),
@@ -182,12 +182,10 @@ class Backtester:
             last_signal_ts = max(signal_events.keys())
             last_bar = data.get_bar(last_signal_ts)
             if last_bar:
-                for trade in self.engine.active_trades[:]:
-                    self.engine.close_trade(
-                        self.engine.active_trades.index(trade),
-                        last_bar['close'],
-                        "BACKTEST_END"
-                    )
+                # Close all remaining active trades (use reversed iteration to handle list changes)
+                for trade in reversed(self.engine.active_trades[:]):
+                    idx = self.engine.active_trades.index(trade)
+                    self.engine.close_trade(idx, last_bar['close'], "BACKTEST_END")
         
         # Calculate metrics
         return self._calculate_metrics(balance_history, self.engine.closed_trades)
@@ -202,9 +200,11 @@ class Backtester:
         ema_200 = indicators.get('ema_200', 0)
         price = indicators.get('price', 0)
         
-        if ema_5 > ema_13 > ema_50 > ema_200 > price:
+        # Bullish: price > EMA5 > EMA13 > EMA50 > EMA200
+        # Bearish: price < EMA5 < EMA13 < EMA50 < EMA200
+        if price > ema_5 > ema_13 > ema_50 > ema_200:
             ema_alignment = "BULLISH"
-        elif ema_5 < ema_13 < ema_50 < ema_200 < price:
+        elif price < ema_5 < ema_13 < ema_50 < ema_200:
             ema_alignment = "BEARISH"
         else:
             ema_alignment = "WEAK"

@@ -222,9 +222,11 @@ def _build_signal_context(symbol: str, indicators: Dict) -> SignalContext:
     ema_200 = indicators.get("ema_200", 0)
     price = indicators.get("price", 0)  # Will be overridden by signal price
     
-    if ema_5 > ema_13 > ema_50 > ema_200 > price:
+    # Bullish: price > EMA5 > EMA13 > EMA50 > EMA200
+    # Bearish: price < EMA5 < EMA13 < EMA50 < EMA200
+    if price > ema_5 > ema_13 > ema_50 > ema_200:
         ema_alignment = "BULLISH"
-    elif ema_5 < ema_13 < ema_50 < ema_200 < price:
+    elif price < ema_5 < ema_13 < ema_50 < ema_200:
         ema_alignment = "BEARISH"
     else:
         ema_alignment = "WEAK"

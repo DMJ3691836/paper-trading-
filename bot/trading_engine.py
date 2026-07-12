@@ -103,31 +103,37 @@ class PaperTradingEngine:
             # Check if different symbol
             # This is simplified - in production, track by symbol
             
-            # Check targets
+            # Check stop loss first (highest priority)
             if trade.direction == "LONG":
-                if price >= trade.target_3:
-                    trades_to_close.append((idx, price, "TARGET_3"))
-                elif price >= trade.target_2:
-                    trades_to_close.append((idx, price, "TARGET_2"))
+                if price <= trade.stop_loss:
+                    trades_to_close.append((idx, price, "STOP_LOSS"))
+                # Check targets in order of proximity (T1 first, then T2, then T3)
                 elif price >= trade.target_1:
                     trades_to_close.append((idx, price, "TARGET_1"))
-                elif price <= trade.stop_loss:
-                    trades_to_close.append((idx, price, "STOP_LOSS"))
+                elif price >= trade.target_2:
+                    trades_to_close.append((idx, price, "TARGET_2"))
+                elif price >= trade.target_3:
+                    trades_to_close.append((idx, price, "TARGET_3"))
             
             else:  # SHORT
-                if price <= trade.target_3:
-                    trades_to_close.append((idx, price, "TARGET_3"))
-                elif price <= trade.target_2:
-                    trades_to_close.append((idx, price, "TARGET_2"))
+                if price >= trade.stop_loss:
+                    trades_to_close.append((idx, price, "STOP_LOSS"))
+                # Check targets in order of proximity (T1 first, then T2, then T3)
                 elif price <= trade.target_1:
                     trades_to_close.append((idx, price, "TARGET_1"))
-                elif price >= trade.stop_loss:
-                    trades_to_close.append((idx, price, "STOP_LOSS"))
+                elif price <= trade.target_2:
+                    trades_to_close.append((idx, price, "TARGET_2"))
+                elif price <= trade.target_3:
+                    trades_to_close.append((idx, price, "TARGET_3"))
         
         # Close trades (in reverse order to maintain indices)
         for idx, close_price, reason in reversed(trades_to_close):
             self.close_trade(idx, close_price, reason)
-            closed.append((idx, close_price, reason))
+            closed.append({
+                "index": idx,
+                "price": close_price,
+                "reason": reason
+            })
         
         return closed
     
