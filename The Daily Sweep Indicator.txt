@@ -4,21 +4,21 @@ indicator("The Daily Sweep", overlay=true, max_labels_count=500, max_lines_count
 //----------------------------------------------------
 // Inputs
 //----------------------------------------------------
-dailyTf          = input.timeframe("D", "Daily Bias Timeframe")
-levelLookback    = input.int(5, "Short-Term Level Lookback", minval=2)
-nySession        = input.session("0930-1200", "New York Setup Window")
-nyTimezone       = input.string("America/New_York", "Session Timezone")
+dailyTf          = input.timeframe("D", "Daily Bias Timeframe", group="Settings")
+levelLookback    = input.int(5, "Short-Term Level Lookback", minval=2, group="Settings")
+nySession        = input.session("0930-1200", "New York Setup Window", group="Settings")
+nyTimezone       = input.string("America/New_York", "Session Timezone", group="Settings")
 
-maxBarsForFvg    = input.int(3, "Max Bars After Sweep For FVG", minval=1)
-maxBarsForEntry  = input.int(8, "Max Bars To Wait For Pullback", minval=1)
+maxBarsForFvg    = input.int(3, "Max Bars After Sweep For FVG", minval=1, group="Settings")
+maxBarsForEntry  = input.int(8, "Max Bars To Wait For Pullback", minval=1, group="Settings")
 
-entryMode        = input.string("Midpoint", "FVG Entry Trigger", options=["Any Touch", "Midpoint"])
-stopBufferTicks  = input.int(2, "Stop Buffer In Ticks", minval=0)
+entryMode        = input.string("Midpoint", "FVG Entry Trigger", options=["Any Touch", "Midpoint"], group="Settings")
+stopBufferTicks  = input.int(2, "Stop Buffer In Ticks", minval=0, group="Settings")
 
-showDailyLevels  = input.bool(true, "Show Previous Day High/Low")
-showFvgBoxes     = input.bool(true, "Show FVG Boxes")
-showRiskLines    = input.bool(true, "Show Entry / Stop / Target Lines")
-showBiasTable    = input.bool(true, "Show Daily Bias Table")
+showDailyLevels  = input.bool(true, "Show Previous Day High/Low", group="Display")
+showFvgBoxes     = input.bool(true, "Show FVG Boxes", group="Display")
+showRiskLines    = input.bool(true, "Show Entry / Stop / Target Lines", group="Display")
+showBiasTable    = input.bool(true, "Show Daily Bias Table", group="Display")
 
 //----------------------------------------------------
 // Daily bias
@@ -27,8 +27,8 @@ showBiasTable    = input.bool(true, "Show Daily Bias Table")
      syminfo.tickerid,
      dailyTf,
      [high[1], low[1], high[2], low[2]],
-     barmerge.gaps_off,
-     barmerge.lookahead_off
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
 )
 
 prevDayHigh = dHigh1
@@ -284,9 +284,9 @@ if longPullback and not longInvalidated
     )
 
     if showRiskLines
-        line.new(bar_index, longEntryPrice, bar_index + 10, longEntryPrice, color=color.green, width=2)
-        line.new(bar_index, longStop, bar_index + 10, longStop, color=color.red, width=2)
-        line.new(bar_index, longTarget, bar_index + 10, longTarget, color=color.blue, width=2)
+        line.new(x1=bar_index, y1=longEntryPrice, x2=bar_index + 10, y2=longEntryPrice, color=color.green, width=2)
+        line.new(x1=bar_index, y1=longStop, x2=bar_index + 10, y2=longStop, color=color.red, width=2)
+        line.new(x1=bar_index, y1=longTarget, x2=bar_index + 10, y2=longTarget, color=color.blue, width=2)
 
     fvgActive := false
     setupDir := 0
@@ -306,9 +306,9 @@ if shortPullback and not shortInvalidated
     )
 
     if showRiskLines
-        line.new(bar_index, shortEntryPrice, bar_index + 10, shortEntryPrice, color=color.red, width=2)
-        line.new(bar_index, shortStop, bar_index + 10, shortStop, color=color.green, width=2)
-        line.new(bar_index, shortTarget, bar_index + 10, shortTarget, color=color.blue, width=2)
+        line.new(x1=bar_index, y1=shortEntryPrice, x2=bar_index + 10, y2=shortEntryPrice, color=color.red, width=2)
+        line.new(x1=bar_index, y1=shortStop, x2=bar_index + 10, y2=shortStop, color=color.green, width=2)
+        line.new(x1=bar_index, y1=shortTarget, x2=bar_index + 10, y2=shortTarget, color=color.blue, width=2)
 
     fvgActive := false
     setupDir := 0
@@ -329,8 +329,8 @@ if fvgActive and not na(barsSinceFvg) and barsSinceFvg > maxBarsForEntry
 //----------------------------------------------------
 // Previous day levels
 //----------------------------------------------------
-plot(showDailyLevels ? prevDayHigh : na, "Previous Day High", color=color.new(color.blue, 0), linewidth=1, style=plot.style_linebr)
-plot(showDailyLevels ? prevDayLow : na, "Previous Day Low", color=color.new(color.blue, 0), linewidth=1, style=plot.style_linebr)
+plot(showDailyLevels ? prevDayHigh : na, "Previous Day High", color=color.new(color.blue, 0), linewidth=1, style=plot.style_line)
+plot(showDailyLevels ? prevDayLow : na, "Previous Day Low", color=color.new(color.blue, 0), linewidth=1, style=plot.style_line)
 
 //----------------------------------------------------
 // Entry markers
